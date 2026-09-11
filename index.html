@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NASA 소행성 정보 조회</title>
+    <title>NASA 소행성 & 우주 사진 조회</title>
     <style>
         * {
             box-sizing: border-box;
@@ -65,8 +65,55 @@
         button:hover {
             background-color: #e02f17;
         }
+
+        /* APOD 사진 영역 스타일 */
+        .apod-section {
+            background: #111;
+            color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .apod-image-container {
+            width: 100%;
+            max-height: 450px;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .apod-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .apod-info {
+            padding: 20px;
+        }
+        .apod-title {
+            margin: 0 0 10px 0;
+            color: #4da6ff;
+            font-size: 20px;
+        }
+        .apod-explanation {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #ddd;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        /* 소행성 목록 스타일 */
+        .section-title {
+            color: #0b3d91;
+            border-bottom: 2px solid #0b3d91;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
         .summary {
-            font-size: 16px;
+            font-size: 15px;
             margin-bottom: 15px;
             color: #555;
             font-weight: bold;
@@ -151,8 +198,9 @@
 <body>
 
 <div class="container">
-    <h1>🚀 NASA 근지구 소행성 (NEO) 조회</h1>
+    <h1>🚀 NASA 우주 사진 & 소행성(NEO) 정보</h1>
     
+    <!-- 검색 조건 입력 영역 -->
     <div class="search-box">
         <div class="form-group">
             <label for="startDate">시작일:</label>
@@ -162,58 +210,109 @@
             <label for="endDate">종료일:</label>
             <input type="date" id="endDate">
         </div>
-        <button onclick="fetchAsteroids()">소행성 검색</button>
+        <button onclick="searchNASA()">검색하기</button>
     </div>
 
+    <!-- NASA APOD 우주 사진 카드 영역 -->
+    <h2 class="section-title">🌌 선택한 날짜의 NASA 우주 사진 (APOD)</h2>
+    <div id="apodContainer" class="apod-section">
+        <div class="loading">사진 정보를 가져오는 중...</div>
+    </div>
+
+    <!-- 소행성 목록 영역 -->
+    <h2 class="section-title">☄️ 근지구 소행성 접근 목록</h2>
     <div id="summary" class="summary"></div>
     <div id="results" class="grid"></div>
 </div>
 
 <script>
-    // 사용자 개인 API Key 설정
+    // 사용자 개인 API Key
     const API_KEY = 'mF966tNZ5cUDXx99W1vypGQJcct0a2FCNkDC8B9k';
 
-    // 기본 날짜 설정 (오늘 날짜)
+    // 기본 날짜 설정
     window.onload = function() {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('startDate').value = today;
         document.getElementById('endDate').value = today;
-        fetchAsteroids();
+        searchNASA();
     };
 
-    async function fetchAsteroids() {
+    // 두 API 동시 호출 함수
+    function searchNASA() {
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
-        const summaryDiv = document.getElementById('summary');
-        const resultsDiv = document.getElementById('results');
 
         if (!startDate) {
             alert('시작 날짜를 선택해주세요.');
             return;
         }
 
-        // 초기화 및 로딩 표시
+        fetchAPOD(startDate); // APOD 우주 사진 API 호출
+        fetchAsteroids(startDate, endDate); // 소행성 API 호출
+    }
+
+    // 1. NASA APOD (오늘의 우주 사진) 데이터 가져오기
+    async function fetchAPOD(date) {
+        const apodContainer = document.getElementById('apodContainer');
+        apodContainer.innerHTML = '<div class="loading">사진 정보를 불러오는 중...</div>';
+
+        const url = `https://api.nasa.gov/planetary/apod?date=${date}&api_key=${API_KEY}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`APOD 불러오기 실패 (${response.status})`);
+            
+            const data = await response.json();
+
+            // 이미지 URL 또는 고화질 HD URL 선택
+            const imageUrl = data.hdurl || data.url;
+            const mediaType = data.media_type;
+
+            let mediaHtml = '';
+            if (mediaType === 'image') {
+                mediaHtml = `<img src="${imageUrl}" alt="${data.title}">`;
+            } else if (mediaType === 'video') {
+                mediaHtml = `<iframe src="${data.url}" width="100%" height="350" frameborder="0" allowfullscreen></iframe>`;
+            }
+
+            apodContainer.innerHTML = `
+                <div class="apod-image-container">
+                    ${mediaHtml}
+                </div>
+                <div class="apod-info">
+                    <h3 class="apod-title">${data.title} (${data.date})</h3>
+                    <p class="apod-explanation">${data.explanation}</p>
+                </div>
+            `;
+        } catch (error) {
+            apodContainer.innerHTML = `<div class="error">해당 날짜의 우주 사진을 불러오지 못했습니다. (${error.message})</div>`;
+        }
+    }
+
+    // 2. NASA NeoWs (소행성 데이터) 가져오기
+    async function fetchAsteroids(startDate, endDate) {
+        const summaryDiv = document.getElementById('summary');
+        const resultsDiv = document.getElementById('results');
+
         summaryDiv.innerHTML = '';
-        resultsDiv.innerHTML = '<div class="loading">NASA API에서 데이터를 불러오는 중...</div>';
+        resultsDiv.innerHTML = '<div class="loading">소행성 정보를 불러오는 중...</div>';
 
         const url = `https://api.nasa.gov/neo/rest/v1/feed?start_date=${startDate}&end_date=${endDate}&api_key=${API_KEY}`;
 
         try {
             const response = await fetch(url);
-            
-            if (!response.ok) {
-                throw new Error(`요청 실패 (상태 코드: ${response.status})`);
-            }
+            if (!response.ok) throw new Error(`소행성 요청 실패 (${response.status})`);
 
             const data = await response.json();
-            displayResults(data);
+            displayAsteroids(data);
 
         } catch (error) {
-            resultsDiv.innerHTML = `<div class="error">데이터를 가져오는 중 오류가 발생했습니다: ${error.message}</div>`;
+            resultsDiv.innerHTML = `<div class="error">소행성 데이터를 가져오는 중 오류가 발생했습니다: ${error.message}</div>`;
         }
     }
 
-    function displayResults(data) {
+    // 소행성 결과 바인딩
+    function displayAsteroids(data) {
         const summaryDiv = document.getElementById('summary');
         const resultsDiv = document.getElementById('results');
         
@@ -222,21 +321,16 @@
 
         const nearEarthObjects = data.near_earth_objects;
 
-        // 날짜별로 정렬되어 나오는 소행성 목록 순회
         Object.keys(nearEarthObjects).forEach(date => {
             nearEarthObjects[date].forEach(asteroid => {
                 const isHazardous = asteroid.is_potentially_hazardous_asteroid;
-                
-                // 추정 지름 (m 단위)
                 const minDiameter = Math.round(asteroid.estimated_diameter.meters.estimated_diameter_min);
                 const maxDiameter = Math.round(asteroid.estimated_diameter.meters.estimated_diameter_max);
                 
-                // 가장 가까운 접근 정보
                 const closeApproach = asteroid.close_approach_data[0];
                 const velocityKmH = Math.round(closeApproach.relative_velocity.kilometers_per_hour).toLocaleString();
                 const missDistanceKm = Math.round(closeApproach.miss_distance.kilometers).toLocaleString();
 
-                // 카드 HTML 생성
                 const cardHtml = `
                     <div class="card ${isHazardous ? 'hazardous' : ''}">
                         <div>
